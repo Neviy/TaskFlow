@@ -1,0 +1,60 @@
+# Environment
+.env
+.env.*
+
+!.env.example
+
+
+# Go build
+/bin/
+/build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+
+# Test
+*.test
+*.out
+
+
+# Logs
+*.log
+
+
+# IDE
+
+# VS Code
+.vscode/
+
+# GoLand / IntelliJ
+.idea/
+
+
+# OS
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
+
+# Docker
+docker-compose.override.yml
+
+
+# Temporary files
+*.tmp
+*.swp
+
+
+# Coverage
+coverage.out
+
+
+# Migrations temp
+*.db
