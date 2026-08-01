@@ -1,3 +1,4 @@
+// Package repository provides database access layer.
 package repository
 
 import (
