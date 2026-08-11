@@ -11,15 +11,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// UserRepository defines the interface for user data access.
-type UserRepository interface {
-	Create(ctx context.Context, user *model.User) error
-	GetByID(ctx context.Context, id int64) (*model.User, error)
-	GetByEmail(ctx context.Context, email string) (*model.User, error)
-	Update(ctx context.Context, user *model.User) error
-	Delete(ctx context.Context, id int64) error
-}
-
 // UserService provides methods for user management.
 type UserService struct {
 	repo UserRepository
