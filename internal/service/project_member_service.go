@@ -12,6 +12,7 @@ type ProjectMemberService struct {
 	userRepo    UserRepository
 }
 
+// NewProjectMemberService creates and returns a service instance.
 func NewProjectMemberService(memberRepo ProjectMemberRepository, projectRepo ProjectRepository, userRepo UserRepository) *ProjectMemberService {
 	return &ProjectMemberService{
 		memberRepo:  memberRepo,
@@ -20,6 +21,7 @@ func NewProjectMemberService(memberRepo ProjectMemberRepository, projectRepo Pro
 	}
 }
 
+// AddMember handles the corresponding service operation.
 func (pms *ProjectMemberService) AddMember(ctx context.Context, projectID int64, userID int64, role model.ProjectRole) error {
 	if projectID <= 0 {
 		return ErrInvalidProjectID
@@ -59,6 +61,7 @@ func (pms *ProjectMemberService) AddMember(ctx context.Context, projectID int64,
 	return nil
 }
 
+// GetMember handles the corresponding service operation.
 func (pms *ProjectMemberService) GetMember(ctx context.Context, projectID int64, userID int64) (*model.ProjectMember, error) {
 	if projectID <= 0 {
 		return nil, ErrInvalidProjectID
@@ -76,6 +79,7 @@ func (pms *ProjectMemberService) GetMember(ctx context.Context, projectID int64,
 	return member, nil
 }
 
+// ListMembers handles the corresponding service operation.
 func (pms *ProjectMemberService) ListMembers(ctx context.Context, projectID int64) ([]*model.ProjectMember, error) {
 	if projectID <= 0 {
 		return nil, ErrInvalidProjectID
@@ -94,6 +98,7 @@ func (pms *ProjectMemberService) ListMembers(ctx context.Context, projectID int6
 	return members, nil
 }
 
+// UpdateRole handles the corresponding service operation.
 func (pms *ProjectMemberService) UpdateRole(ctx context.Context, projectID int64, userID int64, role model.ProjectRole,
 ) error {
 	if projectID <= 0 {
@@ -122,14 +127,19 @@ func (pms *ProjectMemberService) UpdateRole(ctx context.Context, projectID int64
 	return nil
 }
 
-func (pms *ProjectMemberService) RemoveMember(ctx context.Context, projectID int64, userID int64) error {
+// RemoveMember handles the corresponding service operation.
+func (pms *ProjectMemberService) RemoveMember(ctx context.Context, projectID, userID int64) error {
 	if projectID <= 0 {
 		return ErrInvalidProjectID
 	}
 	if userID <= 0 {
 		return ErrInvalidUserID
 	}
-	member, err := pms.memberRepo.GetByProjectAndUserID(ctx, projectID, userID)
+	member, err := pms.memberRepo.GetByProjectAndUserID(
+		ctx,
+		projectID,
+		userID,
+	)
 	if err != nil {
 		return fmt.Errorf("get project member: %w", err)
 	}
@@ -137,14 +147,19 @@ func (pms *ProjectMemberService) RemoveMember(ctx context.Context, projectID int
 		return ErrProjectMemberNotFound
 	}
 	if member.Role == model.RoleOwner {
-		return ErrCannotChangeOwnerRole
+		return ErrCannotRemoveOwner
 	}
-	if err := pms.memberRepo.Delete(ctx, projectID, userID); err != nil {
+	if err := pms.memberRepo.Delete(
+		ctx,
+		projectID,
+		userID,
+	); err != nil {
 		return fmt.Errorf("delete project member: %w", err)
 	}
 	return nil
 }
 
+// IsMember handles the corresponding service operation.
 func (pms *ProjectMemberService) IsMember(ctx context.Context, projectID int64, userID int64,
 ) (bool, error) {
 	if projectID <= 0 {

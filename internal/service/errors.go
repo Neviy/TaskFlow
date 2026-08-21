@@ -9,6 +9,7 @@ var (
 	ErrUserNotFound       = errors.New("user not found")
 	ErrInvalidCredentials = errors.New("invalid email or password")
 	ErrInvalidUserID      = errors.New("invalid user ID")
+	ErrInvalidUser        = errors.New("invalid user")
 )
 
 // Project errors.
@@ -32,13 +33,14 @@ var (
 	ErrProjectMemberNotFound      = errors.New("project member not found")
 	ErrInvalidProjectRole         = errors.New("invalid project role")
 	ErrCannotChangeOwnerRole      = errors.New("cannot change the role of the project owner")
+	ErrCannotRemoveOwner          = errors.New("cannot remove the project owner")
 )
 
 // Comment errors.
 var (
-	ErrInvalidCommentID      = errors.New("invalid comment ID")
-	ErrCommentNotFound       = errors.New("comment not found")
-	ErrInvalidCommentContent = errors.New("invalid comment content")
+	ErrInvalidCommentID   = errors.New("invalid comment ID")
+	ErrCommentNotFound    = errors.New("comment not found")
+	ErrInvalidCommentText = errors.New("invalid comment text")
 )
 
 // Task history errors.

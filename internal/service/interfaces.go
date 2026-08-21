@@ -36,7 +36,7 @@ type ProjectMemberRepository interface {
 		projectID int64,
 	) ([]*model.ProjectMember, error)
 	Update(ctx context.Context, member *model.ProjectMember) error
-	Delete(ctx context.Context, projectID int64, userID int64) error
+	Delete(ctx context.Context, projectID, userID int64) error
 }
 
 // TaskRepository provides access to task storage.
@@ -53,7 +53,6 @@ type CommentRepository interface {
 	Create(ctx context.Context, comment *model.Comment) error
 	GetByID(ctx context.Context, id int64) (*model.Comment, error)
 	ListByTaskID(ctx context.Context, taskID int64) ([]*model.Comment, error)
-	Update(ctx context.Context, comment *model.Comment) error
 	Delete(ctx context.Context, id int64) error
 }
 

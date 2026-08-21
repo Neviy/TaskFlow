@@ -36,7 +36,7 @@ func (cs *CommentService) Create(ctx context.Context, taskID int64, userID int64
 		return nil, ErrInvalidUserID
 	}
 	if content == "" {
-		return nil, ErrInvalidCommentContent
+		return nil, ErrInvalidCommentText
 	}
 	task, err := cs.taskRepo.GetByID(ctx, taskID)
 	if err != nil {
@@ -95,30 +95,6 @@ func (cs *CommentService) GetByTaskID(ctx context.Context, taskID int64) ([]*mod
 		return nil, fmt.Errorf("list comments by task id: %w", err)
 	}
 	return comments, nil
-}
-
-// Update changes the comment content.
-func (cs *CommentService) Update(ctx context.Context, comment *model.Comment) error {
-	if comment == nil {
-		return ErrCommentNotFound
-	}
-	if comment.ID <= 0 {
-		return ErrInvalidCommentID
-	}
-	if comment.Text == "" {
-		return ErrInvalidCommentContent
-	}
-	existing, err := cs.commentRepo.GetByID(ctx, comment.ID)
-	if err != nil {
-		return fmt.Errorf("get comment by id: %w", err)
-	}
-	if existing == nil {
-		return ErrCommentNotFound
-	}
-	if err := cs.commentRepo.Update(ctx, comment); err != nil {
-		return fmt.Errorf("update comment: %w", err)
-	}
-	return nil
 }
 
 // Delete removes a comment.

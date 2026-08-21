@@ -3,7 +3,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"taskflow/internal/auth"
 	"taskflow/internal/model"
@@ -69,7 +68,7 @@ func (us *UserService) Login(ctx context.Context, email, password string) (strin
 // GetByID retrieves a user by their ID.
 func (us *UserService) GetByID(ctx context.Context, id int64) (*model.User, error) {
 	if id <= 0 {
-		return nil, errors.New("invalid id")
+		return nil, ErrInvalidUserID
 	}
 	user, err := us.repo.GetByID(ctx, id)
 	if err != nil {
@@ -82,15 +81,30 @@ func (us *UserService) GetByID(ctx context.Context, id int64) (*model.User, erro
 }
 
 // Update modifies an existing user's information.
-func (us *UserService) Update(ctx context.Context, user *model.User) error {
+func (us *UserService) Update(ctx context.Context,
+	user *model.User) error {
 	if user == nil {
-		return errors.New("user is nil")
+		return ErrInvalidUser
 	}
-	existing, err := us.repo.GetByEmail(ctx, user.Email)
+	if user.ID <= 0 {
+		return ErrInvalidUserID
+	}
+	if user.Username == "" || user.Email == "" {
+		return ErrInvalidUser
+	}
+	existing, err := us.repo.GetByID(ctx, user.ID)
 	if err != nil {
-		return err
+		return fmt.Errorf("get user by id: %w", err)
 	}
-	if existing != nil {
+	if existing == nil {
+		return ErrUserNotFound
+	}
+	// Check whether the email belongs to another user.
+	existingByEmail, err := us.repo.GetByEmail(ctx, user.Email)
+	if err != nil {
+		return fmt.Errorf("get user by email: %w", err)
+	}
+	if existingByEmail != nil && existingByEmail.ID != user.ID {
 		return ErrUserAlreadyExists
 	}
 	if err := us.repo.Update(ctx, user); err != nil {
@@ -102,7 +116,7 @@ func (us *UserService) Update(ctx context.Context, user *model.User) error {
 // Delete removes a user by ID.
 func (us *UserService) Delete(ctx context.Context, id int64) error {
 	if id <= 0 {
-		return errors.New("invalid id")
+		return ErrInvalidUserID
 	}
 	if err := us.repo.Delete(ctx, id); err != nil {
 		return fmt.Errorf("delete user: %w", err)
@@ -110,6 +124,7 @@ func (us *UserService) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
+// ChangePassword handles the corresponding service operation.
 func (us *UserService) ChangePassword(ctx context.Context,
 	userID int64, oldPassword string, newPassword string,
 ) error {
@@ -117,7 +132,7 @@ func (us *UserService) ChangePassword(ctx context.Context,
 		return ErrInvalidUserID
 	}
 	if oldPassword == "" || newPassword == "" {
-		return errors.New("passwords cannot be empty")
+		return ErrInvalidCredentials
 	}
 	user, err := us.repo.GetByID(ctx, userID)
 	if err != nil {

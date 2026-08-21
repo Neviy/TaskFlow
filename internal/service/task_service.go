@@ -13,6 +13,7 @@ type TaskService struct {
 	userRepo    UserRepository
 }
 
+// NewTaskService creates and returns a service instance.
 func NewTaskService(taskRepo TaskRepository, projectRepo ProjectRepository, userRepo UserRepository) *TaskService {
 	return &TaskService{
 		taskRepo:    taskRepo,
@@ -21,6 +22,7 @@ func NewTaskService(taskRepo TaskRepository, projectRepo ProjectRepository, user
 	}
 }
 
+// Create handles the corresponding service operation.
 func (ts *TaskService) Create(ctx context.Context, title, description string, projectID int64, assigneeID *int64) (*model.Task, error) {
 	if projectID <= 0 {
 		return nil, ErrInvalidProjectID
@@ -59,6 +61,7 @@ func (ts *TaskService) Create(ctx context.Context, title, description string, pr
 	return task, nil
 }
 
+// GetByID handles the corresponding service operation.
 func (ts *TaskService) GetByID(ctx context.Context, id int64) (*model.Task, error) {
 	if id <= 0 {
 		return nil, ErrInvalidTaskID
@@ -73,6 +76,7 @@ func (ts *TaskService) GetByID(ctx context.Context, id int64) (*model.Task, erro
 	return task, nil
 }
 
+// GetByProjectID handles the corresponding service operation.
 func (ts *TaskService) GetByProjectID(ctx context.Context, projectID int64) ([]*model.Task, error) {
 	if projectID <= 0 {
 		return nil, ErrInvalidProjectID
@@ -84,6 +88,7 @@ func (ts *TaskService) GetByProjectID(ctx context.Context, projectID int64) ([]*
 	return tasks, nil
 }
 
+// Update handles the corresponding service operation.
 func (ts *TaskService) Update(ctx context.Context, task *model.Task) error {
 	if task.ID <= 0 {
 		return ErrInvalidTaskID
@@ -104,6 +109,7 @@ func (ts *TaskService) Update(ctx context.Context, task *model.Task) error {
 	return nil
 }
 
+// Delete handles the corresponding service operation.
 func (ts *TaskService) Delete(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return ErrInvalidTaskID
@@ -121,6 +127,7 @@ func (ts *TaskService) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
+// AssignToUser handles the corresponding service operation.
 func (ts *TaskService) AssignToUser(ctx context.Context, taskID int64, userID int64) error {
 	if taskID <= 0 {
 		return ErrInvalidTaskID
@@ -149,6 +156,7 @@ func (ts *TaskService) AssignToUser(ctx context.Context, taskID int64, userID in
 	return nil
 }
 
+// UnassignFromUser handles the corresponding service operation.
 func (ts *TaskService) UnassignFromUser(ctx context.Context, taskID int64) error {
 	if taskID <= 0 {
 		return ErrInvalidTaskID
