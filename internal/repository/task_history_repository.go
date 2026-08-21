@@ -3,10 +3,12 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"taskflow/internal/model"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -95,5 +97,48 @@ func (r *TaskHistoryRepository) ListByTaskID(
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate task history: %w", err)
 	}
+	return history, nil
+}
+
+// GetByID returns a task history record by ID.
+func (r *TaskHistoryRepository) GetByID(
+	ctx context.Context,
+	id int64,
+) (*model.TaskHistory, error) {
+	history := &model.TaskHistory{}
+
+	const query = `
+		SELECT
+			id,
+			task_id,
+			changed_by,
+			old_status,
+			new_status,
+			created_at
+		FROM task_history
+		WHERE id = $1
+	`
+
+	err := r.db.QueryRow(
+		ctx,
+		query,
+		id,
+	).Scan(
+		&history.ID,
+		&history.TaskID,
+		&history.ChangedBy,
+		&history.OldStatus,
+		&history.NewStatus,
+		&history.CreatedAt,
+	)
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("get task history by id: %w", err)
+	}
+
 	return history, nil
 }
