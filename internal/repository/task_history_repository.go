@@ -142,3 +142,54 @@ func (r *TaskHistoryRepository) GetByID(
 
 	return history, nil
 }
+
+func (r *TaskHistoryRepository) ListByProjectID(
+	ctx context.Context,
+	projectID int64,
+) ([]*model.TaskHistory, error) {
+	const query = `
+		SELECT
+			h.id,
+			h.task_id,
+			h.changed_by,
+			h.old_status,
+			h.new_status,
+			h.created_at
+		FROM task_history h
+		JOIN tasks t ON t.id = h.task_id
+		WHERE t.project_id = $1
+		ORDER BY h.created_at DESC
+	`
+
+	rows, err := r.db.Query(
+		ctx,
+		query,
+		projectID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list task history by project: %w", err)
+	}
+	defer rows.Close()
+
+	var history []*model.TaskHistory
+
+	for rows.Next() {
+		item := &model.TaskHistory{}
+
+		if err := rows.Scan(
+			&item.ID,
+			&item.TaskID,
+			&item.ChangedBy,
+			&item.OldStatus,
+			&item.NewStatus,
+			&item.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan task history: %w", err)
+		}
+		history = append(history, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate task history: %w", err)
+	}
+	return history, nil
+}

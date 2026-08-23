@@ -65,7 +65,7 @@ func taskToResponse(task *model.Task) TaskResponse {
 
 // CreateTask creates a new task in a project.
 func (h *TaskHandler) CreateTask(c *gin.Context) {
-	projectID, err := strconv.ParseInt(c.Param("projectID"), 10, 64)
+	projectID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || projectID <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid project id",
@@ -92,7 +92,6 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "invalid project id",
 			})
-
 		case errors.Is(err, service.ErrInvalidTaskTitle):
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "invalid task title",
@@ -102,17 +101,14 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "invalid user id",
 			})
-
 		case errors.Is(err, service.ErrProjectNotFound):
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "project not found",
 			})
-
 		case errors.Is(err, service.ErrUserNotFound):
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "user not found",
 			})
-
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": "failed to create task",
@@ -158,7 +154,7 @@ func (h *TaskHandler) GetTask(c *gin.Context) {
 
 // GetProjectTasks retrieves all tasks for a project.
 func (h *TaskHandler) GetProjectTasks(c *gin.Context) {
-	projectID, err := strconv.ParseInt(c.Param("projectID"), 10, 64)
+	projectID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || projectID <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid project id",
@@ -174,6 +170,10 @@ func (h *TaskHandler) GetProjectTasks(c *gin.Context) {
 		case errors.Is(err, service.ErrInvalidProjectID):
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "invalid project id",
+			})
+		case errors.Is(err, service.ErrProjectNotFound):
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "project not found",
 			})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{

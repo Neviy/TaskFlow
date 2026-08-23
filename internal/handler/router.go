@@ -122,12 +122,12 @@ func SetupRouter(
 	// =========================
 
 	protected.POST(
-		"/projects/:projectID/tasks",
+		"/projects/:id/tasks",
 		taskHandler.CreateTask,
 	)
 
 	protected.GET(
-		"/projects/:projectID/tasks",
+		"/projects/:id/tasks",
 		taskHandler.GetProjectTasks,
 	)
 
