@@ -160,7 +160,6 @@ func (r *TaskHistoryRepository) ListByProjectID(
 		WHERE t.project_id = $1
 		ORDER BY h.created_at DESC
 	`
-
 	rows, err := r.db.Query(
 		ctx,
 		query,
@@ -170,9 +169,7 @@ func (r *TaskHistoryRepository) ListByProjectID(
 		return nil, fmt.Errorf("list task history by project: %w", err)
 	}
 	defer rows.Close()
-
 	var history []*model.TaskHistory
-
 	for rows.Next() {
 		item := &model.TaskHistory{}
 

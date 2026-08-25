@@ -1,31 +1,30 @@
-APP_NAME=taskflow
-API_PATH=./cmd/api
-
-.PHONY: run test build fmt vet tidy check clean
-
 run:
-	go run $(API_PATH)
+	go run ./cmd/api
 
 test:
 	go test ./...
 
 build:
-	go build -o bin/$(APP_NAME) $(API_PATH)
+	go build ./cmd/api
 
-fmt:
-	go fmt ./...
+docker-up:
+	docker compose up -d
 
-vet:
-	go vet ./...
+docker-down:
+	docker compose down
 
-tidy:
-	go mod tidy
+docker-build:
+	docker compose build
+
+docker-logs:
+	docker compose logs -f api
+
+docker-restart:
+	docker compose down
+	docker compose up -d --build
 
 check:
 	go fmt ./...
 	go vet ./...
 	go test ./...
-	go build $(API_PATH)
-
-clean:
-	go clean
+	go build ./cmd/api
