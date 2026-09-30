@@ -1,4 +1,3 @@
-// Package repository provides database access layer.
 package repository
 
 import (
@@ -12,109 +11,70 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// ProjectRepository provides methods for working with projects.
+// ProjectRepository works with projects in the database.
 type ProjectRepository struct {
 	db *pgxpool.Pool
 }
 
-// NewProjectRepository creates a new ProjectRepository.
 func NewProjectRepository(db *pgxpool.Pool) *ProjectRepository {
 	return &ProjectRepository{
 		db: db,
 	}
 }
 
-// Create creates a new project in the database.
+// Create adds a new project to the database.
 func (r *ProjectRepository) Create(ctx context.Context, project *model.Project) error {
-	const query = `
-		INSERT INTO projects (name, description, owner_id)
-		VALUES ($1, $2, $3)
-		RETURNING id, created_at, updated_at
-	`
-	err := r.db.QueryRow(
-		ctx,
-		query,
-		project.Name,
-		project.Description,
-		project.OwnerID,
-	).Scan(
-		&project.ID,
-		&project.CreatedAt,
-		&project.UpdatedAt,
-	)
+	query := `INSERT INTO projects (name,description,owner_id)
+						VALUES ($1, $2, $3)
+						RETURNING id,created_at,updated_at`
+	err := r.db.QueryRow(ctx, query, project.Name, project.Description, project.OwnerID).Scan(&project.ID, &project.CreatedAt, &project.UpdatedAt)
 	if err != nil {
-		return fmt.Errorf("create project: %w", err)
+		return fmt.Errorf("failed to create project: %w", err)
 	}
 	return nil
 }
 
-// GetByID returns a project by id.
+// GetByID finds a project by its id.
 func (r *ProjectRepository) GetByID(ctx context.Context, id int64) (*model.Project, error) {
 	project := &model.Project{}
-	const query = `
-		SELECT
-			id,
-			name,
-			description,
-			owner_id,
-			created_at,
-			updated_at
-		FROM projects
-		WHERE id = $1
-	`
-	err := r.db.QueryRow(ctx, query, id).Scan(
-		&project.ID,
-		&project.Name,
-		&project.Description,
-		&project.OwnerID,
-		&project.CreatedAt,
-		&project.UpdatedAt,
-	)
+	query := `SELECT id,name,description,owner_id,created_at,updated_at
+						FROM projects
+						WHERE id = $1`
+	err := r.db.QueryRow(ctx, query, id).Scan(&project.ID, &project.Name, &project.Description, &project.OwnerID, &project.CreatedAt, &project.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+		return nil, fmt.Errorf("project not found:%w", err)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("get project by id: %w", err)
+		return nil, fmt.Errorf("failed to get project by id: %w", err)
 	}
 	return project, nil
 }
 
-// Update updates an existing project in the database.
+// Update changes an existing project in the database.
 func (r *ProjectRepository) Update(ctx context.Context, project *model.Project) error {
-	const query = `
-		UPDATE projects
-		SET
-			name = $1,
-			description = $2,
-			updated_at = NOW()
-		WHERE id = $3
-		RETURNING updated_at
-	`
-	err := r.db.QueryRow(
-		ctx,
-		query,
-		project.Name,
-		project.Description,
-		project.ID,
-	).Scan(&project.UpdatedAt)
+	query := `UPDATE projects
+						SET name = $1,
+								description = $2,
+								updated_at = NOW()
+						WHERE id = $3
+						RETURNING updated_at`
+	err := r.db.QueryRow(ctx, query, project.Name, project.Description, project.ID).Scan(&project.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return errors.New("project not found")
+		return fmt.Errorf("project not found:%w", err)
 	}
 	if err != nil {
-		return fmt.Errorf("update project: %w", err)
+		return fmt.Errorf("failed to update project: %w", err)
 	}
 	return nil
 }
 
-// Delete deletes a project from the database.
+// Delete removes a project from the database.
 func (r *ProjectRepository) Delete(ctx context.Context, id int64) error {
-	const query = `
-		DELETE FROM projects
-		WHERE id = $1
-	`
+	query := `DELETE FROM projects
+						WHERE id = $1`
 	result, err := r.db.Exec(ctx, query, id)
 	if err != nil {
-		return fmt.Errorf("delete project: %w", err)
+		return fmt.Errorf("failed to delete project: %w", err)
 	}
 	if result.RowsAffected() == 0 {
 		return errors.New("project not found")
@@ -124,36 +84,21 @@ func (r *ProjectRepository) Delete(ctx context.Context, id int64) error {
 
 // ListByOwnerID returns all projects owned by a user.
 func (r *ProjectRepository) ListByOwnerID(ctx context.Context, ownerID int64) ([]*model.Project, error) {
-	const query = `
-		SELECT
-			id,
-			name,
-			description,
-			owner_id,
-			created_at,
-			updated_at
-		FROM projects
-		WHERE owner_id = $1
-		ORDER BY created_at DESC
-	`
+	query := `SELECT id,name,description,owner_id,created_at,updated_at
+						FROM projects
+						WHERE owner_id = $1
+						ORDER BY created_at DESC`
 	rows, err := r.db.Query(ctx, query, ownerID)
 	if err != nil {
-		return nil, fmt.Errorf("list projects by owner: %w", err)
+		return nil, fmt.Errorf("failed to list projects by owner: %w", err)
 	}
 	defer rows.Close()
 	var projects []*model.Project
 	for rows.Next() {
 		project := &model.Project{}
-		err = rows.Scan(
-			&project.ID,
-			&project.Name,
-			&project.Description,
-			&project.OwnerID,
-			&project.CreatedAt,
-			&project.UpdatedAt,
-		)
+		err = rows.Scan(&project.ID, &project.Name, &project.Description, &project.OwnerID, &project.CreatedAt, &project.UpdatedAt)
 		if err != nil {
-			return nil, fmt.Errorf("scan project: %w", err)
+			return nil, fmt.Errorf("failed to scan project: %w", err)
 		}
 		projects = append(projects, project)
 	}

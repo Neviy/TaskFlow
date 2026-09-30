@@ -1,4 +1,3 @@
-// Package repository provides database access layer.
 package repository
 
 import (
@@ -12,67 +11,35 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// TaskHistoryRepository provides methods for working with task history.
+// TaskHistoryRepository works with task history in the database.
 type TaskHistoryRepository struct {
 	db *pgxpool.Pool
 }
 
-// NewTaskHistoryRepository creates a new TaskHistoryRepository.
 func NewTaskHistoryRepository(db *pgxpool.Pool) *TaskHistoryRepository {
 	return &TaskHistoryRepository{
 		db: db,
 	}
 }
 
-// Create creates a new task history record.
-func (r *TaskHistoryRepository) Create(
-	ctx context.Context,
-	history *model.TaskHistory,
-) error {
-	const query = `
-		INSERT INTO task_history (
-			task_id,
-			changed_by,
-			old_status,
-			new_status
-		)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, created_at
-	`
-	err := r.db.QueryRow(
-		ctx,
-		query,
-		history.TaskID,
-		history.ChangedBy,
-		history.OldStatus,
-		history.NewStatus,
-	).Scan(
-		&history.ID,
-		&history.CreatedAt,
-	)
+// Create adds a new record to the task history.
+func (r *TaskHistoryRepository) Create(ctx context.Context, history *model.TaskHistory) error {
+	query := `INSERT INTO task_history (task_id,changed_by,old_status,new_status)
+						VALUES ($1, $2, $3, $4)
+						RETURNING id,created_at`
+	err := r.db.QueryRow(ctx, query, history.TaskID, history.ChangedBy, history.OldStatus, history.NewStatus).Scan(&history.ID, &history.CreatedAt)
 	if err != nil {
-		return fmt.Errorf("create task history: %w", err)
+		return fmt.Errorf("failed to create task history: %w", err)
 	}
 	return nil
 }
 
-// ListByTaskID returns history records for a task.
-func (r *TaskHistoryRepository) ListByTaskID(
-	ctx context.Context,
-	taskID int64,
-) ([]*model.TaskHistory, error) {
-	const query = `
-		SELECT
-			id,
-			task_id,
-			changed_by,
-			old_status,
-			new_status,
-			created_at
-		FROM task_history
-		WHERE task_id = $1
-		ORDER BY created_at DESC
-	`
+// ListByTaskID returns the history of a task.
+func (r *TaskHistoryRepository) ListByTaskID(ctx context.Context, taskID int64) ([]*model.TaskHistory, error) {
+	query := `SELECT id,task_id,changed_by,old_status,new_status,created_at
+					FROM task_history
+					WHERE task_id = $1
+					ORDER BY created_at DESC`
 	rows, err := r.db.Query(ctx, query, taskID)
 	if err != nil {
 		return nil, fmt.Errorf("list task history: %w", err)
@@ -81,16 +48,9 @@ func (r *TaskHistoryRepository) ListByTaskID(
 	var history []*model.TaskHistory
 	for rows.Next() {
 		item := &model.TaskHistory{}
-		err := rows.Scan(
-			&item.ID,
-			&item.TaskID,
-			&item.ChangedBy,
-			&item.OldStatus,
-			&item.NewStatus,
-			&item.CreatedAt,
-		)
+		err := rows.Scan(&item.ID, &item.TaskID, &item.ChangedBy, &item.OldStatus, &item.NewStatus, &item.CreatedAt)
 		if err != nil {
-			return nil, fmt.Errorf("scan task history: %w", err)
+			return nil, fmt.Errorf("failed to scan task history: %w", err)
 		}
 		history = append(history, item)
 	}
@@ -100,71 +60,30 @@ func (r *TaskHistoryRepository) ListByTaskID(
 	return history, nil
 }
 
-// GetByID returns a task history record by ID.
-func (r *TaskHistoryRepository) GetByID(
-	ctx context.Context,
-	id int64,
-) (*model.TaskHistory, error) {
+// GetByID finds a task history record by its id.
+func (r *TaskHistoryRepository) GetByID(ctx context.Context, id int64) (*model.TaskHistory, error) {
 	history := &model.TaskHistory{}
-
-	const query = `
-		SELECT
-			id,
-			task_id,
-			changed_by,
-			old_status,
-			new_status,
-			created_at
-		FROM task_history
-		WHERE id = $1
-	`
-
-	err := r.db.QueryRow(
-		ctx,
-		query,
-		id,
-	).Scan(
-		&history.ID,
-		&history.TaskID,
-		&history.ChangedBy,
-		&history.OldStatus,
-		&history.NewStatus,
-		&history.CreatedAt,
-	)
-
+	query := `SELECT id,task_id,changed_by,old_status,new_status,created_at
+						FROM task_history
+						WHERE id = $1`
+	err := r.db.QueryRow(ctx, query, id).Scan(&history.ID, &history.TaskID, &history.ChangedBy, &history.OldStatus, &history.NewStatus, &history.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+		return nil, fmt.Errorf("task history not found:%w", err)
 	}
-
 	if err != nil {
 		return nil, fmt.Errorf("get task history by id: %w", err)
 	}
-
 	return history, nil
 }
 
-func (r *TaskHistoryRepository) ListByProjectID(
-	ctx context.Context,
-	projectID int64,
-) ([]*model.TaskHistory, error) {
-	const query = `
-		SELECT
-			h.id,
-			h.task_id,
-			h.changed_by,
-			h.old_status,
-			h.new_status,
-			h.created_at
-		FROM task_history h
-		JOIN tasks t ON t.id = h.task_id
-		WHERE t.project_id = $1
-		ORDER BY h.created_at DESC
-	`
-	rows, err := r.db.Query(
-		ctx,
-		query,
-		projectID,
-	)
+// ListByProjectID returns all task history for a project.
+func (r *TaskHistoryRepository) ListByProjectID(ctx context.Context, projectID int64) ([]*model.TaskHistory, error) {
+	query := `SELECT id,task_id,changed_by,old_status,new_status,created_at
+								FROM task_history h
+								JOIN tasks t ON t.id = h.task_id
+								WHERE t.project_id = $1
+								ORDER BY h.created_at DESC`
+	rows, err := r.db.Query(ctx, query, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("list task history by project: %w", err)
 	}
@@ -172,15 +91,7 @@ func (r *TaskHistoryRepository) ListByProjectID(
 	var history []*model.TaskHistory
 	for rows.Next() {
 		item := &model.TaskHistory{}
-
-		if err := rows.Scan(
-			&item.ID,
-			&item.TaskID,
-			&item.ChangedBy,
-			&item.OldStatus,
-			&item.NewStatus,
-			&item.CreatedAt,
-		); err != nil {
+		if err := rows.Scan(&item.ID, &item.TaskID, &item.ChangedBy, &item.OldStatus, &item.NewStatus, &item.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan task history: %w", err)
 		}
 		history = append(history, item)
