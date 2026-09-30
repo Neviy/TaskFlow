@@ -1,11 +1,9 @@
-// Package model contains domain models used by the application.
 package model
 
 import (
 	"time"
 )
 
-// TaskStatus represents the current status of a task.
 type TaskStatus string
 
 const (
@@ -19,7 +17,6 @@ const (
 
 // TaskPriority represents the priority of a task.
 type TaskPriority string
-
 const (
 	PriorityLow      TaskPriority = "low"
 	PriorityMedium   TaskPriority = "medium"

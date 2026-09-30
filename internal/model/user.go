@@ -1,4 +1,3 @@
-// Package model contains domain models used by the application.
 package model
 
 import (
@@ -18,7 +17,6 @@ type User struct {
 	UpdatedAt    time.Time
 }
 
-// NewUser creates and returns a new User.
 func NewUser(username, email, hash string) (*User, error) {
 	var errs []error
 	username = strings.TrimSpace(username)
