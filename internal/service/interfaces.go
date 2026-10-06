@@ -26,15 +26,8 @@ type ProjectRepository interface {
 // ProjectMemberRepository provides access to project member storage.
 type ProjectMemberRepository interface {
 	Create(ctx context.Context, member *model.ProjectMember) error
-	GetByProjectAndUserID(
-		ctx context.Context,
-		projectID int64,
-		userID int64,
-	) (*model.ProjectMember, error)
-	ListByProjectID(
-		ctx context.Context,
-		projectID int64,
-	) ([]*model.ProjectMember, error)
+	GetByProjectAndUserID(ctx context.Context, projectID int64, userID int64) (*model.ProjectMember, error)
+	ListByProjectID(ctx context.Context, projectID int64) ([]*model.ProjectMember, error)
 	Update(ctx context.Context, member *model.ProjectMember) error
 	Delete(ctx context.Context, projectID, userID int64) error
 }

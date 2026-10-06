@@ -14,6 +14,7 @@ var (
 
 // Project errors.
 var (
+	ErrInvalidProject     = errors.New("invalid project")
 	ErrInvalidProjectName = errors.New("invalid project name")
 	ErrInvalidProjectID   = errors.New("invalid project ID")
 	ErrProjectNotFound    = errors.New("project not found")
@@ -21,6 +22,7 @@ var (
 
 // Task errors.
 var (
+	ErrInvalidTask      = errors.New("invalid task")
 	ErrInvalidTaskTitle = errors.New("invalid task title")
 	ErrInvalidTaskID    = errors.New("invalid task ID")
 	ErrTaskNotFound     = errors.New("task not found")

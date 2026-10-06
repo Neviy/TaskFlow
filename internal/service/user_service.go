@@ -1,30 +1,33 @@
-// Package service provides the business logic for user management.
 package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"taskflow/internal/auth"
 	"taskflow/internal/model"
 
+	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// UserService provides methods for user management.
+// UserService contains the business logic for user management.
 type UserService struct {
 	repo UserRepository
 }
 
-// NewUserService creates a new instance of UserService with the provided UserRepository.
 func NewUserService(repo UserRepository) *UserService {
 	return &UserService{repo: repo}
 }
 
-// Register creates a new user if the email is not already in use.
+// Register creates a new user after checking that the email is available.
 func (us *UserService) Register(ctx context.Context, username, email, password string) (*model.User, error) {
 	user, err := us.repo.GetByEmail(ctx, email)
 	if err != nil {
-		return nil, fmt.Errorf("get user by email: %w", err)
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
+		}
+		user = nil
 	}
 	if user != nil {
 		return nil, ErrUserAlreadyExists
@@ -33,24 +36,24 @@ func (us *UserService) Register(ctx context.Context, username, email, password s
 	if err != nil {
 		return nil, fmt.Errorf("hash password: %w", err)
 	}
-	users, err := model.NewUser(username, email, string(hash))
+	user, err = model.NewUser(username, email, string(hash))
 	if err != nil {
 		return nil, fmt.Errorf("create user model: %w", err)
 	}
-	if err := us.repo.Create(ctx, users); err != nil {
-		return nil, fmt.Errorf("create user: %w", err)
+	if err := us.repo.Create(ctx, user); err != nil {
+		return nil, err
 	}
-	return users, nil
+	return user, nil
 }
 
-// Login authenticates a user and returns a JWT token.
+// Login checks the user's credentials and returns a JWT token.
 func (us *UserService) Login(ctx context.Context, email, password string) (string, error) {
 	user, err := us.repo.GetByEmail(ctx, email)
 	if err != nil {
-		return "", fmt.Errorf("get user by email: %w", err)
-	}
-	if user == nil {
-		return "", ErrUserNotFound
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrUserNotFound
+		}
+		return "", err
 	}
 	if err := bcrypt.CompareHashAndPassword(
 		[]byte(user.PasswordHash),
@@ -65,24 +68,23 @@ func (us *UserService) Login(ctx context.Context, email, password string) (strin
 	return tokenString, nil
 }
 
-// GetByID retrieves a user by their ID.
+// GetByID returns a user by their ID.
 func (us *UserService) GetByID(ctx context.Context, id int64) (*model.User, error) {
 	if id <= 0 {
 		return nil, ErrInvalidUserID
 	}
 	user, err := us.repo.GetByID(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("get user by id:%w", err)
-	}
-	if user == nil {
-		return nil, ErrUserNotFound
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
 	}
 	return user, nil
 }
 
-// Update modifies an existing user's information.
-func (us *UserService) Update(ctx context.Context,
-	user *model.User) error {
+// Update changes the user's username, email, or password.
+func (us *UserService) Update(ctx context.Context, user *model.User) error {
 	if user == nil {
 		return ErrInvalidUser
 	}
@@ -92,39 +94,47 @@ func (us *UserService) Update(ctx context.Context,
 	if user.Username == "" || user.Email == "" {
 		return ErrInvalidUser
 	}
-	existing, err := us.repo.GetByID(ctx, user.ID)
+	_, err := us.repo.GetByID(ctx, user.ID)
 	if err != nil {
-		return fmt.Errorf("get user by id: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return err
 	}
-	if existing == nil {
-		return ErrUserNotFound
-	}
-	// Check whether the email belongs to another user.
 	existingByEmail, err := us.repo.GetByEmail(ctx, user.Email)
 	if err != nil {
-		return fmt.Errorf("get user by email: %w", err)
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		existingByEmail = nil
 	}
 	if existingByEmail != nil && existingByEmail.ID != user.ID {
 		return ErrUserAlreadyExists
 	}
 	if err := us.repo.Update(ctx, user); err != nil {
-		return fmt.Errorf("update user: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return err
 	}
 	return nil
 }
 
-// Delete removes a user by ID.
+// Delete removes a user by their ID.
 func (us *UserService) Delete(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return ErrInvalidUserID
 	}
 	if err := us.repo.Delete(ctx, id); err != nil {
-		return fmt.Errorf("delete user: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return err
 	}
 	return nil
 }
 
-// ChangePassword handles the corresponding service operation.
+// ChangePassword verifies the old password and saves a new one.
 func (us *UserService) ChangePassword(ctx context.Context,
 	userID int64, oldPassword string, newPassword string,
 ) error {
@@ -136,10 +146,10 @@ func (us *UserService) ChangePassword(ctx context.Context,
 	}
 	user, err := us.repo.GetByID(ctx, userID)
 	if err != nil {
-		return fmt.Errorf("get user by id: %w", err)
-	}
-	if user == nil {
-		return ErrUserNotFound
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return err
 	}
 	if err := bcrypt.CompareHashAndPassword(
 		[]byte(user.PasswordHash),
@@ -153,7 +163,10 @@ func (us *UserService) ChangePassword(ctx context.Context,
 	}
 	user.PasswordHash = string(newHash)
 	if err := us.repo.Update(ctx, user); err != nil {
-		return fmt.Errorf("update user password: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return err
 	}
 	return nil
 }
