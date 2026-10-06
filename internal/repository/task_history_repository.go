@@ -22,7 +22,7 @@ func NewTaskHistoryRepository(db *pgxpool.Pool) *TaskHistoryRepository {
 	}
 }
 
-// Create adds a new record to the task history.
+// Create adds a new entry to the task history.
 func (r *TaskHistoryRepository) Create(ctx context.Context, history *model.TaskHistory) error {
 	query := `INSERT INTO task_history (task_id,changed_by,old_status,new_status)
 						VALUES ($1, $2, $3, $4)
@@ -34,7 +34,7 @@ func (r *TaskHistoryRepository) Create(ctx context.Context, history *model.TaskH
 	return nil
 }
 
-// ListByTaskID returns the history of a task.
+// ListByTaskID returns all history entries for a task.
 func (r *TaskHistoryRepository) ListByTaskID(ctx context.Context, taskID int64) ([]*model.TaskHistory, error) {
 	query := `SELECT id,task_id,changed_by,old_status,new_status,created_at
 					FROM task_history
@@ -60,7 +60,7 @@ func (r *TaskHistoryRepository) ListByTaskID(ctx context.Context, taskID int64) 
 	return history, nil
 }
 
-// GetByID finds a task history record by its id.
+// GetByID finds a history entry by its ID.
 func (r *TaskHistoryRepository) GetByID(ctx context.Context, id int64) (*model.TaskHistory, error) {
 	history := &model.TaskHistory{}
 	query := `SELECT id,task_id,changed_by,old_status,new_status,created_at
@@ -68,7 +68,7 @@ func (r *TaskHistoryRepository) GetByID(ctx context.Context, id int64) (*model.T
 						WHERE id = $1`
 	err := r.db.QueryRow(ctx, query, id).Scan(&history.ID, &history.TaskID, &history.ChangedBy, &history.OldStatus, &history.NewStatus, &history.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("task history not found:%w", err)
+		return nil, err
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get task history by id: %w", err)
@@ -76,7 +76,7 @@ func (r *TaskHistoryRepository) GetByID(ctx context.Context, id int64) (*model.T
 	return history, nil
 }
 
-// ListByProjectID returns all task history for a project.
+// ListByProjectID returns all history entries for tasks in a project.
 func (r *TaskHistoryRepository) ListByProjectID(ctx context.Context, projectID int64) ([]*model.TaskHistory, error) {
 	query := `SELECT id,task_id,changed_by,old_status,new_status,created_at
 								FROM task_history h

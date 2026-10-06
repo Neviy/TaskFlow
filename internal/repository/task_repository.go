@@ -34,7 +34,7 @@ func (r *TaskRepository) Create(ctx context.Context, task *model.Task) error {
 	return nil
 }
 
-// GetByID finds a task by its id.
+// GetByID finds a task by its ID.
 func (r *TaskRepository) GetByID(ctx context.Context, id int64) (*model.Task, error) {
 	task := &model.Task{}
 	query := `SELECT id,project_id,title,description,status,priority,assignee_id,deadline,created_at,updated_at
@@ -42,7 +42,7 @@ func (r *TaskRepository) GetByID(ctx context.Context, id int64) (*model.Task, er
 						WHERE id = $1`
 	err := r.db.QueryRow(ctx, query, id).Scan(&task.ID, &task.ProjectID, &task.Title, &task.Description, &task.Status, &task.Priority, &task.AssigneeID, &task.Deadline, &task.CreatedAt, &task.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+		return nil, err
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get task by id: %w", err)
@@ -64,7 +64,7 @@ func (r *TaskRepository) Update(ctx context.Context, task *model.Task) error {
 						RETURNING updated_at`
 	err := r.db.QueryRow(ctx, query, task.Title, task.Description, task.Status, task.Priority, task.AssigneeID, task.Deadline, task.ID).Scan(&task.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return errors.New("task not found")
+		return err
 	}
 	if err != nil {
 		return fmt.Errorf("update task: %w", err)
@@ -81,12 +81,12 @@ func (r *TaskRepository) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("delete task: %w", err)
 	}
 	if result.RowsAffected() == 0 {
-		return errors.New("task not found")
+		return pgx.ErrNoRows
 	}
 	return nil
 }
 
-// ListByProjectID returns all tasks for a project.
+// ListByProjectID returns all tasks that belong to a project.
 func (r *TaskRepository) ListByProjectID(ctx context.Context, projectID int64) ([]*model.Task, error) {
 	query := `SELECT id,project_id,title,description,status,priority,assignee_id,deadline,created_at,updated_at
 						FROM tasks
@@ -112,7 +112,7 @@ func (r *TaskRepository) ListByProjectID(ctx context.Context, projectID int64) (
 	return tasks, nil
 }
 
-// ListByAssigneeID returns all tasks assigned to a user.
+// ListByAssigneeID returns all tasks assigned to a specific user.
 func (r *TaskRepository) ListByAssigneeID(ctx context.Context, assigneeID int64) ([]*model.Task, error) {
 	query := `SELECT id,project_id,title,description,status,priority,assignee_id,deadline,created_at,updated_at
 						FROM tasks

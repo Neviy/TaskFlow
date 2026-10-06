@@ -2,7 +2,7 @@ package repository
 
 import "github.com/jackc/pgx/v5/pgxpool"
 
-// Repositories stores other repositories for convenience.
+// Repository groups all repositories used by the application.
 type Repository struct {
 	Comments       *CommentRepository
 	Projects       *ProjectRepository

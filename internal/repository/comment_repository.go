@@ -34,7 +34,7 @@ func (r *CommentRepository) Create(ctx context.Context, comment *model.Comment) 
 	return nil
 }
 
-// GetByID finds a comment by its id.
+// GetByID finds a comment by its ID.
 func (r *CommentRepository) GetByID(ctx context.Context, id int64) (*model.Comment, error) {
 	comment := &model.Comment{}
 	query := `SELECT id,task_id,author_id,text,created_at
@@ -42,7 +42,7 @@ func (r *CommentRepository) GetByID(ctx context.Context, id int64) (*model.Comme
 								WHERE id = $1`
 	err := r.db.QueryRow(ctx, query, id).Scan(&comment.ID, &comment.TaskID, &comment.AuthorID, &comment.Text, &comment.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("comment not found:%w", err)
+		return nil, err
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get comment by id: %w", err)
@@ -59,7 +59,7 @@ func (r *CommentRepository) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("failed to delete comment: %w", err)
 	}
 	if result.RowsAffected() == 0 {
-		return errors.New("comment not found")
+		return pgx.ErrNoRows
 	}
 	return nil
 }

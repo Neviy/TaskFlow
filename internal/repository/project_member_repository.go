@@ -41,10 +41,10 @@ func (r *ProjectMemberRepository) GetByProjectAndUserID(ctx context.Context, pro
 						FROM project_members
 						WHERE project_id = $1 AND user_id = $2`
 	err := r.db.QueryRow(ctx, query, projectID, userID).Scan(&member.ID, &member.ProjectID, &member.UserID, &member.Role)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
-	}
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("get project member: %w", err)
 	}
 	return member, nil
@@ -85,7 +85,7 @@ func (r *ProjectMemberRepository) Update(ctx context.Context, member *model.Proj
 	err := r.db.QueryRow(ctx, query, member.Role, member.ProjectID, member.UserID).Scan(&member.ID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return fmt.Errorf("project member not found: %w", err)
+			return err
 		}
 		return fmt.Errorf("failed to update project member: %w", err)
 	}
@@ -101,7 +101,7 @@ func (r *ProjectMemberRepository) Delete(ctx context.Context, projectID int64, u
 		return fmt.Errorf("delete project member: %w", err)
 	}
 	if result.RowsAffected() == 0 {
-		return errors.New("project member not found")
+		return pgx.ErrNoRows
 	}
 	return nil
 }
