@@ -34,7 +34,7 @@ func (r *UserRepository) Create(ctx context.Context, user *model.User) error {
 	return nil
 }
 
-// GetByEmail finds a user by email.
+// GetByEmail finds a user by their email address.
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
 	user := &model.User{}
 	query := `SELECT id,username,email,password_hash,created_at,updated_at
@@ -42,7 +42,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.U
 						WHERE email = $1`
 	err := r.db.QueryRow(ctx, query, email).Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+		return nil, err
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get user by email: %w", err)
@@ -50,7 +50,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.U
 	return user, nil
 }
 
-// GetByID finds a user by its id.
+// GetByID finds a user by their ID.
 func (r *UserRepository) GetByID(ctx context.Context, id int64) (*model.User, error) {
 	user := &model.User{}
 	query := `SELECT id,username,email,password_hash,created_at,updated_at
@@ -58,7 +58,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*model.User, er
 						WHERE id = $1`
 	err := r.db.QueryRow(ctx, query, id).Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+		return nil, err
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get user by id: %w", err)
@@ -66,7 +66,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*model.User, er
 	return user, nil
 }
 
-// Update changes an existing user in the database.
+// Update changes an existing user's information in the database.
 func (r *UserRepository) Update(ctx context.Context, user *model.User) error {
 	query := `UPDATE users
 						SET username = $1,
@@ -77,7 +77,7 @@ func (r *UserRepository) Update(ctx context.Context, user *model.User) error {
 						RETURNING updated_at`
 	err := r.db.QueryRow(ctx, query, user.Username, user.Email, user.PasswordHash, user.ID).Scan(&user.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return errors.New("user not found")
+		return err
 	}
 	if err != nil {
 		return fmt.Errorf("update user: %w", err)
@@ -94,7 +94,7 @@ func (r *UserRepository) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("delete user: %w", err)
 	}
 	if result.RowsAffected() == 0 {
-		return errors.New("user not found")
+		return pgx.ErrNoRows
 	}
 	return nil
 }

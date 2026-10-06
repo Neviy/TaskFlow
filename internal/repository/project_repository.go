@@ -34,7 +34,7 @@ func (r *ProjectRepository) Create(ctx context.Context, project *model.Project) 
 	return nil
 }
 
-// GetByID finds a project by its id.
+// GetByID finds a project by its ID.
 func (r *ProjectRepository) GetByID(ctx context.Context, id int64) (*model.Project, error) {
 	project := &model.Project{}
 	query := `SELECT id,name,description,owner_id,created_at,updated_at
@@ -42,7 +42,7 @@ func (r *ProjectRepository) GetByID(ctx context.Context, id int64) (*model.Proje
 						WHERE id = $1`
 	err := r.db.QueryRow(ctx, query, id).Scan(&project.ID, &project.Name, &project.Description, &project.OwnerID, &project.CreatedAt, &project.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("project not found:%w", err)
+		return nil, err
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get project by id: %w", err)
@@ -60,7 +60,7 @@ func (r *ProjectRepository) Update(ctx context.Context, project *model.Project) 
 						RETURNING updated_at`
 	err := r.db.QueryRow(ctx, query, project.Name, project.Description, project.ID).Scan(&project.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("project not found:%w", err)
+		return err
 	}
 	if err != nil {
 		return fmt.Errorf("failed to update project: %w", err)
@@ -77,7 +77,7 @@ func (r *ProjectRepository) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("failed to delete project: %w", err)
 	}
 	if result.RowsAffected() == 0 {
-		return errors.New("project not found")
+		return pgx.ErrNoRows
 	}
 	return nil
 }

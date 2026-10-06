@@ -1,21 +1,22 @@
-// Package service provides the business logic for user management.
 package service
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"taskflow/internal/model"
+
+	"github.com/jackc/pgx/v5"
 )
 
-// ProjectService contains project business logic.
+// ProjectService handles project-related business logic.
 type ProjectService struct {
 	projectRepo ProjectRepository
 	memberRepo  ProjectMemberRepository
 	userRepo    UserRepository
 }
 
-// NewProjectService creates a new ProjectService.
 func NewProjectService(projectRepo ProjectRepository, memberRepo ProjectMemberRepository, userRepo UserRepository) *ProjectService {
 	return &ProjectService{
 		projectRepo: projectRepo,
@@ -24,35 +25,30 @@ func NewProjectService(projectRepo ProjectRepository, memberRepo ProjectMemberRe
 	}
 }
 
-// Create creates a project and adds the owner as a member.
+// Create creates a project and adds its owner as a member.
 func (ps *ProjectService) Create(ctx context.Context, name, description string, ownerID int64) (*model.Project, error) {
 	if ownerID <= 0 {
 		return nil, ErrInvalidUserID
 	}
+	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, ErrInvalidProjectName
 	}
-
-	// Check owner exists.
-	user, err := ps.userRepo.GetByID(ctx, ownerID)
+	_, err := ps.userRepo.GetByID(ctx, ownerID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("%w: %v", ErrUserNotFound, err)
+		}
 		return nil, fmt.Errorf("get owner: %w", err)
 	}
-	if user == nil {
-		return nil, ErrUserNotFound
-	}
-
-	// Create project.
 	project := &model.Project{
 		Name:        name,
-		Description: description,
+		Description: strings.TrimSpace(description),
 		OwnerID:     ownerID,
 	}
 	if err := ps.projectRepo.Create(ctx, project); err != nil {
 		return nil, fmt.Errorf("create project: %w", err)
 	}
-
-	// Add owner to project members.
 	member := &model.ProjectMember{
 		ProjectID: project.ID,
 		UserID:    ownerID,
@@ -64,17 +60,17 @@ func (ps *ProjectService) Create(ctx context.Context, name, description string, 
 	return project, nil
 }
 
-// GetByID returns a project by ID.
+// GetByID returns a project by its ID.
 func (ps *ProjectService) GetByID(ctx context.Context, id int64) (*model.Project, error) {
 	if id <= 0 {
 		return nil, ErrInvalidProjectID
 	}
 	project, err := ps.projectRepo.GetByID(ctx, id)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("%w: %v", ErrProjectNotFound, err)
+		}
 		return nil, fmt.Errorf("get project by id: %w", err)
-	}
-	if project == nil {
-		return nil, ErrProjectNotFound
 	}
 	return project, nil
 }
@@ -91,22 +87,29 @@ func (ps *ProjectService) GetByOwner(ctx context.Context, ownerID int64) ([]*mod
 	return projects, nil
 }
 
-// Update updates project information.
+// Update changes a project's name and description.
 func (ps *ProjectService) Update(ctx context.Context, project *model.Project) error {
 	if project == nil {
-		return errors.New("project is nil")
+		return ErrInvalidProject
 	}
+	if project.ID <= 0 {
+		return ErrInvalidProjectID
+	}
+	project.Name = strings.TrimSpace(project.Name)
 	if project.Name == "" {
 		return ErrInvalidProjectName
 	}
-	existingProject, err := ps.projectRepo.GetByID(ctx, project.ID)
+	_, err := ps.projectRepo.GetByID(ctx, project.ID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("%w: %v", ErrProjectNotFound, err)
+		}
 		return fmt.Errorf("get project by id: %w", err)
 	}
-	if existingProject == nil {
-		return ErrProjectNotFound
-	}
 	if err := ps.projectRepo.Update(ctx, project); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("%w: %v", ErrProjectNotFound, err)
+		}
 		return fmt.Errorf("update project: %w", err)
 	}
 	return nil
@@ -117,14 +120,17 @@ func (ps *ProjectService) Delete(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return ErrInvalidProjectID
 	}
-	project, err := ps.projectRepo.GetByID(ctx, id)
+	_, err := ps.projectRepo.GetByID(ctx, id)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("%w: %v", ErrProjectNotFound, err)
+		}
 		return fmt.Errorf("get project by id: %w", err)
 	}
-	if project == nil {
-		return ErrProjectNotFound
-	}
 	if err := ps.projectRepo.Delete(ctx, id); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) || err.Error() == "project not found" {
+			return fmt.Errorf("%w: %v", ErrProjectNotFound, err)
+		}
 		return fmt.Errorf("delete project: %w", err)
 	}
 	return nil

@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"taskflow/internal/model"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type ProjectMemberService struct {
@@ -12,7 +14,6 @@ type ProjectMemberService struct {
 	userRepo    UserRepository
 }
 
-// NewProjectMemberService creates and returns a service instance.
 func NewProjectMemberService(memberRepo ProjectMemberRepository, projectRepo ProjectRepository, userRepo UserRepository) *ProjectMemberService {
 	return &ProjectMemberService{
 		memberRepo:  memberRepo,
@@ -21,7 +22,7 @@ func NewProjectMemberService(memberRepo ProjectMemberRepository, projectRepo Pro
 	}
 }
 
-// AddMember handles the corresponding service operation.
+// AddMember adds a user to a project.
 func (pms *ProjectMemberService) AddMember(ctx context.Context, projectID int64, userID int64, role model.ProjectRole) error {
 	if projectID <= 0 {
 		return ErrInvalidProjectID
@@ -29,23 +30,23 @@ func (pms *ProjectMemberService) AddMember(ctx context.Context, projectID int64,
 	if userID <= 0 {
 		return ErrInvalidUserID
 	}
-	existingProject, err := pms.projectRepo.GetByID(ctx, projectID)
+	_, err := pms.projectRepo.GetByID(ctx, projectID)
 	if err != nil {
-		return fmt.Errorf("get project by id: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrProjectNotFound
+		}
+		return err
 	}
-	if existingProject == nil {
-		return ErrProjectNotFound
-	}
-	existingUser, err := pms.userRepo.GetByID(ctx, userID)
+	_, err = pms.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return fmt.Errorf("get user by id: %w", err)
-	}
-	if existingUser == nil {
-		return ErrUserNotFound
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserNotFound
+		}
+		return err
 	}
 	member, err := pms.memberRepo.GetByProjectAndUserID(ctx, projectID, userID)
-	if err != nil {
-		return fmt.Errorf("get project member: %w", err)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
 	}
 	if member != nil {
 		return ErrProjectMemberAlreadyExists
@@ -56,12 +57,12 @@ func (pms *ProjectMemberService) AddMember(ctx context.Context, projectID int64,
 		Role:      role,
 	}
 	if err := pms.memberRepo.Create(ctx, member); err != nil {
-		return fmt.Errorf("create project member: %w", err)
+		return err
 	}
 	return nil
 }
 
-// GetMember handles the corresponding service operation.
+// GetMember returns a project member by project ID and user ID.
 func (pms *ProjectMemberService) GetMember(ctx context.Context, projectID int64, userID int64) (*model.ProjectMember, error) {
 	if projectID <= 0 {
 		return nil, ErrInvalidProjectID
@@ -71,7 +72,10 @@ func (pms *ProjectMemberService) GetMember(ctx context.Context, projectID int64,
 	}
 	member, err := pms.memberRepo.GetByProjectAndUserID(ctx, projectID, userID)
 	if err != nil {
-		return nil, fmt.Errorf("get project member: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrProjectMemberNotFound
+		}
+		return nil, err
 	}
 	if member == nil {
 		return nil, ErrProjectMemberNotFound
@@ -79,26 +83,26 @@ func (pms *ProjectMemberService) GetMember(ctx context.Context, projectID int64,
 	return member, nil
 }
 
-// ListMembers handles the corresponding service operation.
+// ListMembers returns all members of a project.
 func (pms *ProjectMemberService) ListMembers(ctx context.Context, projectID int64) ([]*model.ProjectMember, error) {
 	if projectID <= 0 {
 		return nil, ErrInvalidProjectID
 	}
-	existingProject, err := pms.projectRepo.GetByID(ctx, projectID)
+	_, err := pms.projectRepo.GetByID(ctx, projectID)
 	if err != nil {
-		return nil, fmt.Errorf("get project by id: %w", err)
-	}
-	if existingProject == nil {
-		return nil, ErrProjectNotFound
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrProjectNotFound
+		}
+		return nil, err
 	}
 	members, err := pms.memberRepo.ListByProjectID(ctx, projectID)
 	if err != nil {
-		return nil, fmt.Errorf("list project members: %w", err)
+		return nil, err
 	}
 	return members, nil
 }
 
-// UpdateRole handles the corresponding service operation.
+// UpdateRole changes a project member's role.
 func (pms *ProjectMemberService) UpdateRole(ctx context.Context, projectID int64, userID int64, role model.ProjectRole,
 ) error {
 	if projectID <= 0 {
@@ -112,7 +116,10 @@ func (pms *ProjectMemberService) UpdateRole(ctx context.Context, projectID int64
 	}
 	member, err := pms.memberRepo.GetByProjectAndUserID(ctx, projectID, userID)
 	if err != nil {
-		return fmt.Errorf("get project member: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrProjectMemberNotFound
+		}
+		return err
 	}
 	if member == nil {
 		return ErrProjectMemberNotFound
@@ -122,12 +129,15 @@ func (pms *ProjectMemberService) UpdateRole(ctx context.Context, projectID int64
 	}
 	member.Role = role
 	if err := pms.memberRepo.Update(ctx, member); err != nil {
-		return fmt.Errorf("update project member role: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrProjectMemberNotFound
+		}
+		return err
 	}
 	return nil
 }
 
-// RemoveMember handles the corresponding service operation.
+// RemoveMember removes a user from a project.
 func (pms *ProjectMemberService) RemoveMember(ctx context.Context, projectID, userID int64) error {
 	if projectID <= 0 {
 		return ErrInvalidProjectID
@@ -135,13 +145,12 @@ func (pms *ProjectMemberService) RemoveMember(ctx context.Context, projectID, us
 	if userID <= 0 {
 		return ErrInvalidUserID
 	}
-	member, err := pms.memberRepo.GetByProjectAndUserID(
-		ctx,
-		projectID,
-		userID,
-	)
+	member, err := pms.memberRepo.GetByProjectAndUserID(ctx, projectID, userID)
 	if err != nil {
-		return fmt.Errorf("get project member: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrProjectMemberNotFound
+		}
+		return err
 	}
 	if member == nil {
 		return ErrProjectMemberNotFound
@@ -149,19 +158,17 @@ func (pms *ProjectMemberService) RemoveMember(ctx context.Context, projectID, us
 	if member.Role == model.RoleOwner {
 		return ErrCannotRemoveOwner
 	}
-	if err := pms.memberRepo.Delete(
-		ctx,
-		projectID,
-		userID,
-	); err != nil {
-		return fmt.Errorf("delete project member: %w", err)
+	if err := pms.memberRepo.Delete(ctx, projectID, userID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrProjectMemberNotFound
+		}
+		return err
 	}
 	return nil
 }
 
-// IsMember handles the corresponding service operation.
-func (pms *ProjectMemberService) IsMember(ctx context.Context, projectID int64, userID int64,
-) (bool, error) {
+// IsMember checks whether a user belongs to a project.
+func (pms *ProjectMemberService) IsMember(ctx context.Context, projectID int64, userID int64) (bool, error) {
 	if projectID <= 0 {
 		return false, ErrInvalidProjectID
 	}
@@ -170,10 +177,10 @@ func (pms *ProjectMemberService) IsMember(ctx context.Context, projectID int64, 
 	}
 	member, err := pms.memberRepo.GetByProjectAndUserID(ctx, projectID, userID)
 	if err != nil {
-		return false, fmt.Errorf("get project member: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
 	}
-	if member == nil {
-		return false, nil
-	}
-	return true, nil
+	return member != nil, nil
 }
