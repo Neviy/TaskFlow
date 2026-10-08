@@ -2,20 +2,21 @@ package auth
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// Claims contains the authenticated user ID and standard JWT claims.
+// Claims holds the user ID and the standard claims stored in a JWT.
 type Claims struct {
 	UserID int64 `json:"user_id"`
 	jwt.RegisteredClaims
 }
 
-var secretKey = []byte("super-secret-key")
+var secretKey = []byte(os.Getenv("JWT_SECRET"))
 
-// GenerateToken creates a signed access token for the specified user.
+// GenerateToken creates a JWT for the given user ID.
 func GenerateToken(userID int64) (string, error) {
 	claims := Claims{
 		UserID: userID,
@@ -32,12 +33,12 @@ func GenerateToken(userID int64) (string, error) {
 	return tokenString, nil
 }
 
-// ParseToken validates an access token and returns its user ID.
+// ParseToken checks the JWT and returns the user ID stored in it.
 func ParseToken(tokenString string) (int64, error) {
 	claims := &Claims{}
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
 		return secretKey, nil
 	})
