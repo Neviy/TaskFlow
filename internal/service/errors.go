@@ -18,6 +18,7 @@ var (
 	ErrInvalidProjectName = errors.New("invalid project name")
 	ErrInvalidProjectID   = errors.New("invalid project ID")
 	ErrProjectNotFound    = errors.New("project not found")
+	ErrForbidden          = errors.New("forbidden")
 )
 
 // Task errors.

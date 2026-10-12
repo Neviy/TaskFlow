@@ -17,6 +17,7 @@ const (
 
 // TaskPriority represents the priority of a task.
 type TaskPriority string
+
 const (
 	PriorityLow      TaskPriority = "low"
 	PriorityMedium   TaskPriority = "medium"

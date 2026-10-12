@@ -5,7 +5,7 @@ import (
 	"taskflow/internal/model"
 )
 
-// UserRepository provides access to user storage.
+// UserRepository works with users.
 type UserRepository interface {
 	Create(ctx context.Context, user *model.User) error
 	GetByID(ctx context.Context, id int64) (*model.User, error)
@@ -14,7 +14,7 @@ type UserRepository interface {
 	Delete(ctx context.Context, id int64) error
 }
 
-// ProjectRepository provides access to project storage.
+// ProjectRepository works with projects.
 type ProjectRepository interface {
 	Create(ctx context.Context, project *model.Project) error
 	GetByID(ctx context.Context, id int64) (*model.Project, error)
@@ -23,7 +23,7 @@ type ProjectRepository interface {
 	Delete(ctx context.Context, id int64) error
 }
 
-// ProjectMemberRepository provides access to project member storage.
+// ProjectMemberRepository manages project members.
 type ProjectMemberRepository interface {
 	Create(ctx context.Context, member *model.ProjectMember) error
 	GetByProjectAndUserID(ctx context.Context, projectID int64, userID int64) (*model.ProjectMember, error)
@@ -32,7 +32,7 @@ type ProjectMemberRepository interface {
 	Delete(ctx context.Context, projectID, userID int64) error
 }
 
-// TaskRepository provides access to task storage.
+// TaskRepository works with tasks.
 type TaskRepository interface {
 	Create(ctx context.Context, task *model.Task) error
 	GetByID(ctx context.Context, id int64) (*model.Task, error)
@@ -41,7 +41,7 @@ type TaskRepository interface {
 	Delete(ctx context.Context, id int64) error
 }
 
-// CommentRepository provides access to comment storage.
+// CommentRepository works with comments.
 type CommentRepository interface {
 	Create(ctx context.Context, comment *model.Comment) error
 	GetByID(ctx context.Context, id int64) (*model.Comment, error)
@@ -49,7 +49,7 @@ type CommentRepository interface {
 	Delete(ctx context.Context, id int64) error
 }
 
-// TaskHistoryRepository provides access to task history storage.
+// TaskHistoryRepository works with task history.
 type TaskHistoryRepository interface {
 	Create(ctx context.Context, history *model.TaskHistory) error
 	GetByID(ctx context.Context, id int64) (*model.TaskHistory, error)

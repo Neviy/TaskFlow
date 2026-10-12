@@ -4,36 +4,60 @@ import (
 	"context"
 	"errors"
 	"strings"
+
 	"taskflow/internal/model"
 
 	"github.com/jackc/pgx/v5"
 )
 
-// TaskService handles business logic for tasks.
+// TaskService handles task logic.
 type TaskService struct {
 	taskRepo    TaskRepository
 	projectRepo ProjectRepository
+	memberRepo  ProjectMemberRepository
 	userRepo    UserRepository
 }
 
-func NewTaskService(taskRepo TaskRepository, projectRepo ProjectRepository, userRepo UserRepository) *TaskService {
+func NewTaskService(taskRepo TaskRepository, projectRepo ProjectRepository, memberRepo ProjectMemberRepository, userRepo UserRepository) *TaskService {
 	return &TaskService{
 		taskRepo:    taskRepo,
 		projectRepo: projectRepo,
+		memberRepo:  memberRepo,
 		userRepo:    userRepo,
 	}
 }
 
-// Create creates a new task in a project.
-func (ts *TaskService) Create(ctx context.Context, title, description string, projectID int64, assigneeID *int64) (*model.Task, error) {
+// checkProjectAccess checks if a user can access the project.
+func (ts *TaskService) checkProjectAccess(ctx context.Context, projectID, userID int64) error {
+	if projectID <= 0 || userID <= 0 {
+		return ErrForbidden
+	}
+	project, err := ts.projectRepo.GetByID(ctx, projectID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrProjectNotFound
+		}
+		return err
+	}
+	if project.OwnerID == userID {
+		return nil
+	}
+	_, err = ts.memberRepo.GetByProjectAndUserID(ctx, projectID, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrForbidden
+		}
+		return err
+	}
+	return nil
+}
+
+// Create creates a task in a project.
+func (ts *TaskService) Create(ctx context.Context, title, description string, projectID, userID int64, assigneeID *int64) (*model.Task, error) {
 	if projectID <= 0 {
 		return nil, ErrInvalidProjectID
 	}
-	_, err := ts.projectRepo.GetByID(ctx, projectID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrProjectNotFound
-		}
+	if err := ts.checkProjectAccess(ctx, projectID, userID); err != nil {
 		return nil, err
 	}
 	title = strings.TrimSpace(title)
@@ -44,10 +68,9 @@ func (ts *TaskService) Create(ctx context.Context, title, description string, pr
 		if *assigneeID <= 0 {
 			return nil, ErrInvalidUserID
 		}
-		_, err := ts.userRepo.GetByID(ctx, *assigneeID)
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return nil, ErrUserNotFound
+		if err := ts.checkProjectAccess(ctx, projectID, *assigneeID); err != nil {
+			if errors.Is(err, ErrForbidden) {
+				return nil, ErrInvalidUserID
 			}
 			return nil, err
 		}
@@ -65,7 +88,7 @@ func (ts *TaskService) Create(ctx context.Context, title, description string, pr
 }
 
 // GetByID returns a task by its ID.
-func (ts *TaskService) GetByID(ctx context.Context, id int64) (*model.Task, error) {
+func (ts *TaskService) GetByID(ctx context.Context, id, userID int64) (*model.Task, error) {
 	if id <= 0 {
 		return nil, ErrInvalidTaskID
 	}
@@ -76,23 +99,25 @@ func (ts *TaskService) GetByID(ctx context.Context, id int64) (*model.Task, erro
 		}
 		return nil, err
 	}
+	if err := ts.checkProjectAccess(ctx, task.ProjectID, userID); err != nil {
+		return nil, err
+	}
 	return task, nil
 }
 
-// GetByProjectID returns all tasks in a project.
-func (ts *TaskService) GetByProjectID(ctx context.Context, projectID int64) ([]*model.Task, error) {
+// GetByProjectID returns tasks from a project.
+func (ts *TaskService) GetByProjectID(ctx context.Context, projectID, userID int64) ([]*model.Task, error) {
 	if projectID <= 0 {
 		return nil, ErrInvalidProjectID
 	}
-	tasks, err := ts.taskRepo.ListByProjectID(ctx, projectID)
-	if err != nil {
+	if err := ts.checkProjectAccess(ctx, projectID, userID); err != nil {
 		return nil, err
 	}
-	return tasks, nil
+	return ts.taskRepo.ListByProjectID(ctx, projectID)
 }
 
-// Update updates an existing task.
-func (ts *TaskService) Update(ctx context.Context, task *model.Task) error {
+// Update updates a task.
+func (ts *TaskService) Update(ctx context.Context, task *model.Task, userID int64) error {
 	if task == nil {
 		return ErrInvalidTask
 	}
@@ -103,13 +128,17 @@ func (ts *TaskService) Update(ctx context.Context, task *model.Task) error {
 	if task.Title == "" {
 		return ErrInvalidTaskTitle
 	}
-	_, err := ts.taskRepo.GetByID(ctx, task.ID)
+	existing, err := ts.taskRepo.GetByID(ctx, task.ID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrTaskNotFound
 		}
 		return err
 	}
+	if err := ts.checkProjectAccess(ctx, existing.ProjectID, userID); err != nil {
+		return err
+	}
+	task.ProjectID = existing.ProjectID
 	if err := ts.taskRepo.Update(ctx, task); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrTaskNotFound
@@ -119,16 +148,19 @@ func (ts *TaskService) Update(ctx context.Context, task *model.Task) error {
 	return nil
 }
 
-// Delete removes a task by its ID.
-func (ts *TaskService) Delete(ctx context.Context, id int64) error {
+// Delete removes a task.
+func (ts *TaskService) Delete(ctx context.Context, id, userID int64) error {
 	if id <= 0 {
 		return ErrInvalidTaskID
 	}
-	_, err := ts.taskRepo.GetByID(ctx, id)
+	task, err := ts.taskRepo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrTaskNotFound
 		}
+		return err
+	}
+	if err := ts.checkProjectAccess(ctx, task.ProjectID, userID); err != nil {
 		return err
 	}
 	if err := ts.taskRepo.Delete(ctx, id); err != nil {
@@ -141,11 +173,11 @@ func (ts *TaskService) Delete(ctx context.Context, id int64) error {
 }
 
 // AssignToUser assigns a task to a user.
-func (ts *TaskService) AssignToUser(ctx context.Context, taskID int64, userID int64) error {
+func (ts *TaskService) AssignToUser(ctx context.Context, taskID, userID, assigneeID int64) error {
 	if taskID <= 0 {
 		return ErrInvalidTaskID
 	}
-	if userID <= 0 {
+	if assigneeID <= 0 {
 		return ErrInvalidUserID
 	}
 	task, err := ts.taskRepo.GetByID(ctx, taskID)
@@ -155,14 +187,16 @@ func (ts *TaskService) AssignToUser(ctx context.Context, taskID int64, userID in
 		}
 		return err
 	}
-	_, err = ts.userRepo.GetByID(ctx, userID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrUserNotFound
+	if err := ts.checkProjectAccess(ctx, task.ProjectID, userID); err != nil {
+		return err
+	}
+	if err := ts.checkProjectAccess(ctx, task.ProjectID, assigneeID); err != nil {
+		if errors.Is(err, ErrForbidden) {
+			return ErrInvalidUserID
 		}
 		return err
 	}
-	task.AssigneeID = &userID
+	task.AssigneeID = &assigneeID
 	if err := ts.taskRepo.Update(ctx, task); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrTaskNotFound
@@ -172,8 +206,8 @@ func (ts *TaskService) AssignToUser(ctx context.Context, taskID int64, userID in
 	return nil
 }
 
-// UnassignFromUser removes the assignee from a task.
-func (ts *TaskService) UnassignFromUser(ctx context.Context, taskID int64) error {
+// UnassignFromUser removes the task assignee.
+func (ts *TaskService) UnassignFromUser(ctx context.Context, taskID, userID int64) error {
 	if taskID <= 0 {
 		return ErrInvalidTaskID
 	}
@@ -182,6 +216,9 @@ func (ts *TaskService) UnassignFromUser(ctx context.Context, taskID int64) error
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrTaskNotFound
 		}
+		return err
+	}
+	if err := ts.checkProjectAccess(ctx, task.ProjectID, userID); err != nil {
 		return err
 	}
 	task.AssigneeID = nil
