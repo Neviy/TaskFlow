@@ -3,27 +3,54 @@ package service
 import (
 	"context"
 	"errors"
+
 	"taskflow/internal/model"
 
 	"github.com/jackc/pgx/v5"
 )
 
-// TaskHistoryService handles business logic for task history.
+// TaskHistoryService handles task history.
 type TaskHistoryService struct {
 	historyRepo TaskHistoryRepository
 	taskRepo    TaskRepository
 	projectRepo ProjectRepository
+	memberRepo  ProjectMemberRepository
 }
 
-func NewTaskHistoryService(historyRepo TaskHistoryRepository, taskRepo TaskRepository, projectRepo ProjectRepository) *TaskHistoryService {
+func NewTaskHistoryService(historyRepo TaskHistoryRepository, taskRepo TaskRepository, projectRepo ProjectRepository, memberRepo ProjectMemberRepository) *TaskHistoryService {
 	return &TaskHistoryService{
 		historyRepo: historyRepo,
 		taskRepo:    taskRepo,
 		projectRepo: projectRepo,
+		memberRepo:  memberRepo,
 	}
 }
 
-// Create adds a new history record for a task.
+func (s *TaskHistoryService) checkProjectAccess(ctx context.Context, projectID, userID int64) error {
+	if projectID <= 0 || userID <= 0 {
+		return ErrForbidden
+	}
+	project, err := s.projectRepo.GetByID(ctx, projectID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrProjectNotFound
+		}
+		return err
+	}
+	if project.OwnerID == userID {
+		return nil
+	}
+	_, err = s.memberRepo.GetByProjectAndUserID(ctx, projectID, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrForbidden
+		}
+		return err
+	}
+	return nil
+}
+
+// Create adds a history record.
 func (s *TaskHistoryService) Create(ctx context.Context, history *model.TaskHistory) error {
 	if history == nil {
 		return ErrInvalidTaskHistory
@@ -44,8 +71,8 @@ func (s *TaskHistoryService) Create(ctx context.Context, history *model.TaskHist
 	return nil
 }
 
-// GetByID returns a history record by its ID.
-func (s *TaskHistoryService) GetByID(ctx context.Context, id int64) (*model.TaskHistory, error) {
+// GetByID returns a history record.
+func (s *TaskHistoryService) GetByID(ctx context.Context, id, userID int64) (*model.TaskHistory, error) {
 	if id <= 0 {
 		return nil, ErrInvalidTaskHistoryID
 	}
@@ -56,43 +83,44 @@ func (s *TaskHistoryService) GetByID(ctx context.Context, id int64) (*model.Task
 		}
 		return nil, err
 	}
-	return history, nil
-}
-
-// GetByTaskID returns all history records for a task.
-func (s *TaskHistoryService) GetByTaskID(ctx context.Context, taskID int64) ([]*model.TaskHistory, error) {
-	if taskID <= 0 {
-		return nil, ErrInvalidTaskID
-	}
-	_, err := s.taskRepo.GetByID(ctx, taskID)
+	task, err := s.taskRepo.GetByID(ctx, history.TaskID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrTaskNotFound
 		}
 		return nil, err
 	}
-	history, err := s.historyRepo.ListByTaskID(ctx, taskID)
-	if err != nil {
+	if err := s.checkProjectAccess(ctx, task.ProjectID, userID); err != nil {
 		return nil, err
 	}
 	return history, nil
 }
 
-// GetByProjectID returns history records for all tasks in a project.
-func (s *TaskHistoryService) GetByProjectID(ctx context.Context, projectID int64) ([]*model.TaskHistory, error) {
-	if projectID <= 0 {
-		return nil, ErrInvalidProjectID
+// GetByTaskID returns task history.
+func (s *TaskHistoryService) GetByTaskID(ctx context.Context, taskID, userID int64) ([]*model.TaskHistory, error) {
+	if taskID <= 0 {
+		return nil, ErrInvalidTaskID
 	}
-	_, err := s.projectRepo.GetByID(ctx, projectID)
+	task, err := s.taskRepo.GetByID(ctx, taskID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrProjectNotFound
+			return nil, ErrTaskNotFound
 		}
 		return nil, err
 	}
-	history, err := s.historyRepo.ListByProjectID(ctx, projectID)
-	if err != nil {
+	if err := s.checkProjectAccess(ctx, task.ProjectID, userID); err != nil {
 		return nil, err
 	}
-	return history, nil
+	return s.historyRepo.ListByTaskID(ctx, taskID)
+}
+
+// GetByProjectID returns project task history.
+func (s *TaskHistoryService) GetByProjectID(ctx context.Context, projectID, userID int64) ([]*model.TaskHistory, error) {
+	if projectID <= 0 {
+		return nil, ErrInvalidProjectID
+	}
+	if err := s.checkProjectAccess(ctx, projectID, userID); err != nil {
+		return nil, err
+	}
+	return s.historyRepo.ListByProjectID(ctx, projectID)
 }

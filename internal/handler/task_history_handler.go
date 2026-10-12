@@ -11,21 +11,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// TaskHistoryHandler handles task history HTTP requests.
+// TaskHistoryHandler handles task history requests.
 type TaskHistoryHandler struct {
 	historyService *service.TaskHistoryService
 }
 
-// NewTaskHistoryHandler creates a task history handler backed by historyService.
-func NewTaskHistoryHandler(
-	historyService *service.TaskHistoryService,
-) *TaskHistoryHandler {
+func NewTaskHistoryHandler(historyService *service.TaskHistoryService) *TaskHistoryHandler {
 	return &TaskHistoryHandler{
 		historyService: historyService,
 	}
 }
 
-// TaskHistoryResponse represents a task status change returned by the API.
+// TaskHistoryResponse holds task history data.
 type TaskHistoryResponse struct {
 	ID        int64            `json:"id"`
 	TaskID    int64            `json:"task_id"`
@@ -35,9 +32,7 @@ type TaskHistoryResponse struct {
 	CreatedAt string           `json:"created_at"`
 }
 
-func toTaskHistoryResponse(
-	history *model.TaskHistory,
-) TaskHistoryResponse {
+func toTaskHistoryResponse(history *model.TaskHistory) TaskHistoryResponse {
 	return TaskHistoryResponse{
 		ID:        history.ID,
 		TaskID:    history.TaskID,
@@ -50,129 +45,94 @@ func toTaskHistoryResponse(
 	}
 }
 
-// GetByID returns a task history record by ID.
+// GetByID returns a history record by ID.
 func (h *TaskHistoryHandler) GetByID(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || id <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid task history id",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task history id"})
 		return
 	}
-	history, err := h.historyService.GetByID(
-		c.Request.Context(),
-		id,
-	)
+	userID := c.GetInt64("userID")
+	history, err := h.historyService.GetByID(c.Request.Context(), id, userID)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidTaskHistoryID) {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "invalid task history id",
-			})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task history id"})
+			return
+		}
+		if errors.Is(err, service.ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
 		if errors.Is(err, service.ErrTaskHistoryNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "task history not found",
-			})
+			c.JSON(http.StatusNotFound, gin.H{"error": "task history not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to get task history",
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get task history"})
 		return
 	}
-	c.JSON(
-		http.StatusOK,
-		toTaskHistoryResponse(history),
-	)
+	c.JSON(http.StatusOK, toTaskHistoryResponse(history))
 }
 
-// GetByTaskID returns history of a task.
+// GetByTaskID returns a task's history.
 func (h *TaskHistoryHandler) GetByTaskID(c *gin.Context) {
 	taskID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || taskID <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid task id",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task id"})
 		return
 	}
-	history, err := h.historyService.GetByTaskID(
-		c.Request.Context(),
-		taskID,
-	)
+	userID := c.GetInt64("userID")
+	history, err := h.historyService.GetByTaskID(c.Request.Context(), taskID, userID)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidTaskID) {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "invalid task id",
-			})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task id"})
+			return
+		}
+		if errors.Is(err, service.ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
 		if errors.Is(err, service.ErrTaskNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "task not found",
-			})
+			c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to get task history",
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get task history"})
 		return
 	}
-	response := make(
-		[]TaskHistoryResponse,
-		0,
-		len(history),
-	)
+	response := make([]TaskHistoryResponse, 0, len(history))
 	for _, item := range history {
-		response = append(
-			response,
-			toTaskHistoryResponse(item),
-		)
+		response = append(response, toTaskHistoryResponse(item))
 	}
 	c.JSON(http.StatusOK, response)
 }
 
-// GetByProjectID returns history of all tasks in a project.
+// GetByProjectID returns history for a project's tasks.
 func (h *TaskHistoryHandler) GetByProjectID(c *gin.Context) {
 	projectID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || projectID <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid project id",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project id"})
 		return
 	}
-	history, err := h.historyService.GetByProjectID(
-		c.Request.Context(),
-		projectID,
-	)
+	userID := c.GetInt64("userID")
+	history, err := h.historyService.GetByProjectID(c.Request.Context(), projectID, userID)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidProjectID) {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "invalid project id",
-			})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project id"})
+			return
+		}
+		if errors.Is(err, service.ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
 		if errors.Is(err, service.ErrProjectNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "project not found",
-			})
+			c.JSON(http.StatusNotFound, gin.H{"error": "project not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to get project history",
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get project history"})
 		return
 	}
-	response := make(
-		[]TaskHistoryResponse,
-		0,
-		len(history),
-	)
+	response := make([]TaskHistoryResponse, 0, len(history))
 	for _, item := range history {
-		response = append(
-			response,
-			toTaskHistoryResponse(item),
-		)
+		response = append(response, toTaskHistoryResponse(item))
 	}
 	c.JSON(http.StatusOK, response)
 }

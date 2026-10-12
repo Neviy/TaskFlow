@@ -30,6 +30,9 @@ func (pms *ProjectMemberService) AddMember(ctx context.Context, projectID int64,
 	if userID <= 0 {
 		return ErrInvalidUserID
 	}
+	if !isValidRole(role) {
+		return ErrInvalidProjectRole
+	}
 	_, err := pms.projectRepo.GetByID(ctx, projectID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -77,9 +80,6 @@ func (pms *ProjectMemberService) GetMember(ctx context.Context, projectID int64,
 		}
 		return nil, err
 	}
-	if member == nil {
-		return nil, ErrProjectMemberNotFound
-	}
 	return member, nil
 }
 
@@ -111,7 +111,7 @@ func (pms *ProjectMemberService) UpdateRole(ctx context.Context, projectID int64
 	if userID <= 0 {
 		return ErrInvalidUserID
 	}
-	if role == "" {
+	if !isValidRole(role) {
 		return ErrInvalidProjectRole
 	}
 	member, err := pms.memberRepo.GetByProjectAndUserID(ctx, projectID, userID)
@@ -120,9 +120,6 @@ func (pms *ProjectMemberService) UpdateRole(ctx context.Context, projectID int64
 			return ErrProjectMemberNotFound
 		}
 		return err
-	}
-	if member == nil {
-		return ErrProjectMemberNotFound
 	}
 	if member.Role == model.RoleOwner {
 		return ErrCannotChangeOwnerRole
@@ -152,9 +149,6 @@ func (pms *ProjectMemberService) RemoveMember(ctx context.Context, projectID, us
 		}
 		return err
 	}
-	if member == nil {
-		return ErrProjectMemberNotFound
-	}
 	if member.Role == model.RoleOwner {
 		return ErrCannotRemoveOwner
 	}
@@ -175,6 +169,13 @@ func (pms *ProjectMemberService) IsMember(ctx context.Context, projectID int64, 
 	if userID <= 0 {
 		return false, ErrInvalidUserID
 	}
+	_, err := pms.projectRepo.GetByID(ctx, projectID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, ErrProjectNotFound
+		}
+		return false, err
+	}
 	member, err := pms.memberRepo.GetByProjectAndUserID(ctx, projectID, userID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -183,4 +184,13 @@ func (pms *ProjectMemberService) IsMember(ctx context.Context, projectID int64, 
 		return false, err
 	}
 	return member != nil, nil
+}
+
+func isValidRole(role model.ProjectRole) bool {
+	switch role {
+	case model.RoleAdmin, model.RoleMember:
+		return true
+	default:
+		return false
+	}
 }

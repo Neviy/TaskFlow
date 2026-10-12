@@ -12,29 +12,23 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// CommentHandler handles task comment HTTP requests.
+// CommentHandler handles comment requests.
 type CommentHandler struct {
 	commentService *service.CommentService
 }
 
-// NewCommentHandler creates a comment handler backed by commentService.
 func NewCommentHandler(commentService *service.CommentService) *CommentHandler {
 	return &CommentHandler{
 		commentService: commentService,
 	}
 }
 
-// CreateCommentRequest represents the payload for creating a comment.
+// CreateCommentRequest holds the new comment text.
 type CreateCommentRequest struct {
 	Text string `json:"text" binding:"required"`
 }
 
-// UpdateCommentRequest represents the payload for updating a comment.
-type UpdateCommentRequest struct {
-	Text string `json:"text" binding:"required"`
-}
-
-// CommentResponse represents comment data returned by the API.
+// CommentResponse contains the comment data sent to the client.
 type CommentResponse struct {
 	ID        int64     `json:"id"`
 	TaskID    int64     `json:"task_id"`
@@ -53,60 +47,40 @@ func toCommentResponse(comment *model.Comment) CommentResponse {
 	}
 }
 
-// CreateComment creates a new comment for a task.
+// CreateComment adds a comment to a task.
 func (h *CommentHandler) CreateComment(c *gin.Context) {
 	taskID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || taskID <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid task id",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task id"})
 		return
 	}
 	userID := c.GetInt64("userID")
 	if userID <= 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "unauthorized",
-		})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 	var req CreateCommentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid request",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
-	comment, err := h.commentService.Create(
-		c.Request.Context(),
-		taskID,
-		userID,
-		req.Text,
-	)
+	comment, err := h.commentService.Create(c.Request.Context(), taskID, userID, req.Text)
 	if err != nil {
 		if errors.Is(err, service.ErrTaskNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "task not found",
-			})
+			c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
 			return
 		}
 		if errors.Is(err, service.ErrUserNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "user not found",
-			})
+			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 			return
 		}
 		if errors.Is(err, service.ErrInvalidCommentText) {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "invalid comment text",
-			})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid comment text"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to create comment",
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create comment"})
 		return
 	}
-
 	c.JSON(http.StatusCreated, toCommentResponse(comment))
 }
 
@@ -114,30 +88,18 @@ func (h *CommentHandler) CreateComment(c *gin.Context) {
 func (h *CommentHandler) GetByID(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || id <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid comment id",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid comment id"})
 		return
 	}
-
-	comment, err := h.commentService.GetByID(
-		c.Request.Context(),
-		id,
-	)
+	comment, err := h.commentService.GetByID(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, service.ErrCommentNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "comment not found",
-			})
+			c.JSON(http.StatusNotFound, gin.H{"error": "comment not found"})
 			return
 		}
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to get comment",
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get comment"})
 		return
 	}
-
 	c.JSON(http.StatusOK, toCommentResponse(comment))
 }
 
@@ -145,61 +107,40 @@ func (h *CommentHandler) GetByID(c *gin.Context) {
 func (h *CommentHandler) GetByTaskID(c *gin.Context) {
 	taskID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || taskID <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid task id",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task id"})
 		return
 	}
-
-	comments, err := h.commentService.GetByTaskID(
-		c.Request.Context(),
-		taskID,
-	)
+	comments, err := h.commentService.GetByTaskID(c.Request.Context(), taskID)
 	if err != nil {
 		if errors.Is(err, service.ErrTaskNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "task not found",
-			})
+			c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
 			return
 		}
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to get task comments",
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get task comments"})
 		return
 	}
-
 	response := make([]CommentResponse, 0, len(comments))
-
 	for _, comment := range comments {
 		response = append(response, toCommentResponse(comment))
 	}
-
 	c.JSON(http.StatusOK, response)
 }
 
-// Delete deletes a comment.
+// Delete removes a comment.
 func (h *CommentHandler) Delete(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || id <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid comment id",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid comment id"})
 		return
 	}
-	if err := h.commentService.Delete(
-		c.Request.Context(),
-		id,
-	); err != nil {
+	if err := h.commentService.Delete(c.Request.Context(), id); err != nil {
 		if errors.Is(err, service.ErrCommentNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "comment not found",
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to delete comment",
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete comment"})
 		return
 	}
 	c.Status(http.StatusNoContent)
